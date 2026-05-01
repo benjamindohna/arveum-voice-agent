@@ -147,6 +147,7 @@ Antworte NUR mit dem JSON-Objekt."""
             "message": f"Scoring: {session.score}/100",
             "data": " | ".join(session.highlights),
         })
+        await on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
         return result
     except Exception as e:
         await on_event({
@@ -155,4 +156,5 @@ Antworte NUR mit dem JSON-Objekt."""
             "message": f"Scoring fehlgeschlagen: {e}",
         })
         session.score = "?"
+        await on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
         return {"score": "?", "highlights": []}

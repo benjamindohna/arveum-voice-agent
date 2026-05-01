@@ -417,7 +417,7 @@ function updateDashboard() {
         $('dashRole').textContent = STATE.selectedJobId || '—';
     }
     $('dashCV').textContent = STATE.cvUploaded ? '✅ hochgeladen' : '—';
-    $('dashScore').textContent = STATE.score ? `${STATE.score}/100` : '—';
+    $('dashScore').textContent = STATE.score != null ? `${STATE.score}/100` : '—';
     const ul = $('dashHighlights');
     ul.innerHTML = '';
     (STATE.highlights || []).forEach(h => {
