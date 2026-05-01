@@ -1,0 +1,81 @@
+{
+  "jobs": [
+    {
+      "id": "alm-001",
+      "title": "Pflegefachkraft (m/w/d)",
+      "location": "Köln-Nippes",
+      "type": "Vollzeit oder Teilzeit (mind. 50%)",
+      "shift": "Früh- und Spätdienst, Nachtdienst optional",
+      "salary": "3.400 – 4.100 EUR brutto/Monat (Vollzeit, je nach Erfahrung) plus Schichtzulagen",
+      "summary": "Pflegerische Versorgung und Begleitung von 12 bis 15 Bewohnern in einem Wohnbereich.",
+      "responsibilities": [
+        "Grund- und Behandlungspflege",
+        "Pflegeplanung und Dokumentation",
+        "Begleitung bei Arztvisiten",
+        "Anleitung von Pflegehelfern und Auszubildenden"
+      ],
+      "requirements": [
+        "Examinierte Pflegefachkraft (Altenpflege oder Krankenpflege)",
+        "Empathie und Geduld",
+        "Bereitschaft zu Schichtarbeit"
+      ],
+      "nice_to_have": [
+        "Erfahrung mit Demenz-Bewohnern",
+        "Wundmanager-Zertifikat",
+        "Erfahrung in Praxisanleitung"
+      ],
+      "application_focus": "Pflegealltag, Umgang mit schwierigen Situationen, fachliche Sicherheit, Erfahrung mit Demenz und Palliativ"
+    },
+    {
+      "id": "alm-002",
+      "title": "Wohnbereichsleitung (m/w/d)",
+      "location": "Düsseldorf-Bilk",
+      "type": "Vollzeit",
+      "shift": "Vorwiegend Tagesdienst, gelegentlich Wochenendpräsenz",
+      "salary": "4.500 – 5.200 EUR brutto/Monat plus Leistungsbonus",
+      "summary": "Verantwortung für 25 Bewohner und ein Team von 8 bis 10 Pflegekräften.",
+      "responsibilities": [
+        "Personalverantwortung für den Wohnbereich",
+        "Dienstplanung (mit Tool-Unterstützung)",
+        "Pflegegradmanagement und Qualitätssicherung",
+        "Angehörigenarbeit"
+      ],
+      "requirements": [
+        "Examinierte Pflegefachkraft mit Weiterbildung Wohnbereichsleitung",
+        "mindestens drei Jahre Berufserfahrung",
+        "Führungserfahrung"
+      ],
+      "nice_to_have": [
+        "betriebswirtschaftliche Grundkenntnisse",
+        "Erfahrung mit MDK-Prüfungen",
+        "Coaching-Ausbildung"
+      ],
+      "application_focus": "Führungsphilosophie, Konfliktmanagement, Budget-Verantwortung, Umgang mit Personalmangel"
+    },
+    {
+      "id": "alm-003",
+      "title": "Pflegehelfer (m/w/d) — Quereinstieg möglich",
+      "location": "Essen-Rüttenscheid",
+      "type": "Voll- oder Teilzeit",
+      "shift": "Schichtdienst",
+      "salary": "2.400 – 2.800 EUR brutto/Monat plus Zulagen",
+      "summary": "Unterstützung der Pflegefachkräfte im Wohnbereich. Quereinstieg willkommen, Pflegebasiskurs wird über uns finanziert.",
+      "responsibilities": [
+        "Grundpflege",
+        "Hilfe bei Mahlzeiten",
+        "Begleitung der Bewohner im Alltag",
+        "Hauswirtschaftliche Tätigkeiten"
+      ],
+      "requirements": [
+        "Empathie und Belastbarkeit",
+        "Deutschkenntnisse B1 oder besser",
+        "körperliche Fitness"
+      ],
+      "nice_to_have": [
+        "Pflegebasiskurs",
+        "Erfahrung in Hauswirtschaft oder Betreuung"
+      ],
+      "application_focus": "Motivation, Belastbarkeit, Umgang mit körperlich und emotional anspruchsvollen Situationen, Lernbereitschaft"
+    }
+  ]
+}

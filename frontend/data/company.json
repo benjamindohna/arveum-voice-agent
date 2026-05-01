@@ -1,0 +1,24 @@
+{
+  "name": "AlmaCare",
+  "tagline": "Pflege mit Herz, Technologie mit Verstand",
+  "founded": 2018,
+  "size": "850 Mitarbeitende, 24 Standorte in NRW und Niedersachsen",
+  "headquarters": "Münster",
+  "founders": "Dr. Lena Hartmann (Pflegewissenschaftlerin) und Tobias Reuter (ehem. Pflegehelfer und Unternehmer). Sie haben sich kennengelernt, als beide unabhängig voneinander pleitegehende Heime in NRW retten wollten.",
+  "mission": "Pflege wieder so machen, dass sowohl Pflegekräfte als auch Bewohner gerne zur Arbeit kommen. Technologie nutzen wir, um Pflegekräften Verwaltungsarbeit abzunehmen — nicht um Menschlichkeit zu ersetzen.",
+  "values": [
+    "Würde — Bewohner und Pflegekräfte werden mit gleichem Respekt behandelt",
+    "Klarheit — keine Doppelschichten, keine versteckten Erwartungen",
+    "Lernen — jährliches Bildungsbudget pro Person",
+    "Verlässlichkeit — Dienstpläne sechs Wochen im Voraus"
+  ],
+  "team_dynamics": "Flache Hierarchien, dezentrale Entscheidungen pro Standort. Jede Wohnbereichsleitung hat Budget-Verantwortung.",
+  "communication_culture": "Du-Kultur durchgehend, auch Geschäftsführung. Standortleitungen organisieren monatliche Team-Frühstücke.",
+  "tone_of_voice": {
+    "warmth": "hoch",
+    "formality": "Du, locker aber respektvoll",
+    "language_register": "Alltagssprache, fachliche Begriffe wo nötig"
+  },
+  "differentiator": "Wir investieren bewusst in Tech, die Pflegende entlastet (Dokumentations-KI, smarte Dienstplanung), aber wir halten Bewohner-Kontakt zu 100% bei Menschen. Keine Pflege-Roboter, keine Chatbots am Krankenbett.",
+  "what_we_dont_do": "Wir betreiben keine Krankenhäuser, keine ambulante Pflege, keine Reha. Reine stationäre Altenpflege plus Tagespflege an einigen Standorten."
+}
