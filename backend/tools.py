@@ -1,8 +1,11 @@
-"""Tool-Definitionen + Handler. 1:1 Port aus mvp-call-agent/app.js TOOL_DEFS + executeTool.
+"""Tool-Definitionen + Handler.
 
-Format: für OpenAI Realtime API → 'function'-Type mit parameters JSON Schema."""
+Format: für OpenAI Realtime API → 'function'-Type mit parameters JSON Schema.
+Job-Lookups gehen gegen voice.arveum.ai (siehe `voice_api.py`)."""
 
 from typing import Any, Callable, Awaitable
+
+import voice_api
 
 
 # Tool-Definitionen im OpenAI Realtime Format
@@ -10,43 +13,18 @@ TOOL_DEFS: list[dict[str, Any]] = [
     {
         "type": "function",
         "name": "list_open_jobs",
-        "description": "Listet alle aktuell offenen Stellen bei AlmaCare auf. Verwende dies, wenn der Anrufer nach offenen Stellen, Vakanzen, Bewerbungsmöglichkeiten o.ä. fragt.",
+        "description": "Listet alle aktuell offenen Stellen auf. Verwende dies, wenn der Anrufer nach offenen Stellen, Vakanzen, Bewerbungsmöglichkeiten o.ä. fragt.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
         "type": "function",
         "name": "get_job_details",
-        "description": "Liefert detaillierte Informationen zu einer bestimmten Stelle (Anforderungen, Aufgaben, Standort, Gehalt). Verwende dies, wenn der Anrufer mehr über eine konkrete Rolle wissen möchte.",
+        "description": "Liefert detaillierte Informationen zu einer bestimmten Stelle (Beschreibung, Anforderungen, Standort). Verwende dies, wenn der Anrufer mehr über eine konkrete Rolle wissen möchte.",
         "parameters": {
             "type": "object",
-            "properties": {"job_id": {"type": "string", "description": "ID der Stelle, z.B. alm-001"}},
+            "properties": {"job_id": {"type": "string", "description": "ID der Stelle aus list_open_jobs, z.B. JOB007"}},
             "required": ["job_id"],
         },
-    },
-    {
-        "type": "function",
-        "name": "get_benefit",
-        "description": "Liefert Informationen zu Benefits wie Urlaub, Homeoffice, Gehalt, Fortbildung, Schichten, Kinderbetreuung, Kantine, Gesundheit, Altersvorsorge, JobRad, Karrierepfad. IMMER für konkrete Zahlen verwenden, niemals raten.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "topic": {
-                    "type": "string",
-                    "enum": [
-                        "vacation_days", "remote_work", "salary_model", "training_budget",
-                        "shift_model", "childcare", "canteen", "health", "pension",
-                        "bike_leasing", "career_path",
-                    ],
-                },
-            },
-            "required": ["topic"],
-        },
-    },
-    {
-        "type": "function",
-        "name": "get_locations",
-        "description": "Listet alle Standorte von AlmaCare auf.",
-        "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
         "type": "function",
@@ -56,7 +34,7 @@ TOOL_DEFS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "email": {"type": "string", "description": "Email-Adresse des Bewerbers"},
-                "job_id": {"type": "string", "description": "ID der gewählten Rolle, z.B. alm-001"},
+                "job_id": {"type": "string", "description": "ID der gewählten Rolle aus list_open_jobs"},
             },
             "required": ["email", "job_id"],
         },
@@ -104,8 +82,6 @@ TOOL_DEFS: list[dict[str, Any]] = [
 _FREE_TOOLS = {
     "list_open_jobs",
     "get_job_details",
-    "get_benefit",
-    "get_locations",
     "send_upload_link",
     "escalate_to_human",
 }
@@ -137,9 +113,8 @@ def tools_for_mode(mode: str) -> list[dict[str, Any]]:
 
 class ToolContext:
     """Kontext, der Tool-Handlern übergeben wird. Spart riesige Argument-Listen."""
-    def __init__(self, session, data, on_event, email_service, score_candidate_fn, end_call_with_escalation_fn):
+    def __init__(self, session, on_event, email_service, score_candidate_fn, end_call_with_escalation_fn):
         self.session = session
-        self.data = data
         self.on_event = on_event                            # async Callback: dict → Browser-Event
         self.email_service = email_service
         self.score_candidate = score_candidate_fn           # async ()
@@ -149,33 +124,48 @@ class ToolContext:
 async def execute_tool(name: str, input_data: dict, ctx: ToolContext) -> dict:
     """Dispatcht den Tool-Aufruf. Rückgabe = JSON-serialisierbares Dict (geht an OpenAI als function_call_output)."""
     session = ctx.session
-    data = ctx.data
 
     await ctx.on_event({"type": "log", "logtype": "tool", "message": f"{name}({input_data})"})
     await ctx.on_event({"type": "tool_called", "name": name, "input": input_data})
 
     if name == "list_open_jobs":
-        result = [
-            {"id": j["id"], "title": j["title"], "location": j["location"], "summary": j["summary"]}
-            for j in data["jobs"]
-        ]
+        try:
+            jobs = await voice_api.list_jobs()
+            result = [
+                {
+                    "id": j.get("id"),
+                    "title": j.get("title"),
+                    "department": j.get("department"),
+                    "location": j.get("location"),
+                }
+                for j in jobs
+            ]
+        except Exception as e:
+            await ctx.on_event({"type": "log", "logtype": "err", "message": f"list_jobs API-Fehler: {e}"})
+            result = {"error": "Stellenliste ist gerade nicht erreichbar"}
 
     elif name == "get_job_details":
-        job = next((j for j in data["jobs"] if j["id"] == input_data.get("job_id")), None)
-        result = job if job else {"error": "Stelle nicht gefunden"}
-
-    elif name == "get_benefit":
-        topic = input_data.get("topic")
-        result = data["benefits"].get(topic, {"error": "Topic nicht gefunden"})
-
-    elif name == "get_locations":
-        result = data["locations"]
+        job_id = input_data.get("job_id", "")
+        try:
+            job = await voice_api.get_job_details(job_id)
+            session.selected_job_data = job
+            # API liefert id/title/description plus optional requirements,
+            # tech_stack, benefits, kennziffer. Alles durchreichen, was da ist —
+            # der Agent kann's in Free-Mode-Antworten verwenden.
+            result = {k: v for k, v in job.items() if k in {
+                "id", "title", "description", "department", "location",
+                "type", "experience", "requirements", "tech_stack",
+                "benefits", "kennziffer",
+            }}
+        except Exception as e:
+            await ctx.on_event({"type": "log", "logtype": "err", "message": f"get_job_details API-Fehler: {e}"})
+            result = {"error": f"Details zur Stelle {job_id} sind gerade nicht erreichbar"}
 
     elif name == "send_upload_link":
         session.caller_email = input_data["email"]
         session.selected_job_id = input_data["job_id"]
         session.mode = "awaiting_upload"
-        await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
+        await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict()})
         # Email-Service triggert das Browser-Modal (Mock) oder echten Versand (Resend, später)
         await ctx.email_service.send_upload_link(
             email=session.caller_email,
@@ -195,7 +185,7 @@ async def execute_tool(name: str, input_data: dict, ctx: ToolContext) -> dict:
     elif name == "escalate_to_human":
         # Async Übergabe-Flow: erst aktuelle Response abwarten, dann verbatim Übergangstext sprechen, dann endCall.
         session.mode = "wrapping"
-        await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
+        await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict()})
         await ctx.on_event({
             "type": "system_message",
             "text": f"🚪 Übergabe an menschlichen Recruiter wird vorbereitet — Grund: {input_data.get('reason', '')}",
@@ -227,7 +217,7 @@ async def execute_tool(name: str, input_data: dict, ctx: ToolContext) -> dict:
             })
             session.current_answer_buffer = []
             session.current_question_idx += 1
-            await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
+            await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict()})
 
             if session.current_question_idx >= len(session.questions):
                 session.mode = "wrapping"
@@ -263,7 +253,7 @@ async def execute_tool(name: str, input_data: dict, ctx: ToolContext) -> dict:
                 "data": {"added_summary": input_data["additional_summary"]},
             })
             session.current_answer_buffer = []
-            await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
+            await ctx.on_event({"type": "state_update", "state": session.to_dashboard_dict()})
             result = {
                 "status": "extended",
                 "message": "Ergänzung wurde an die vorherige Antwort angehängt. Der Frage-Index bleibt unverändert. Stelle jetzt erneut die aktuelle Frage, oder warte auf eine neue Antwort.",

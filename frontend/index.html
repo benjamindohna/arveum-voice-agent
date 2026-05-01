@@ -2,13 +2,13 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Arveum Voice Agent — AlmaCare (Python Backend)</title>
+    <title>Arveum Voice Agent</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="app">
         <header>
-            <h1>🤖 Arveum Voice Agent — AlmaCare</h1>
+            <h1>🤖 Arveum Voice Agent</h1>
             <span class="status" id="status">Bereit</span>
         </header>
 
@@ -77,17 +77,6 @@
                 <div class="dash-section"><strong>Score:</strong> <span id="dashScore">—</span></div>
                 <div class="dash-section"><strong>Highlights:</strong><ul id="dashHighlights"></ul></div>
 
-                <details class="context-panel">
-                    <summary>📋 Wissen, das Aria hat (für Vergleich)</summary>
-                    <div class="context-content">
-                        <h4>Im System-Prompt (immer verfügbar)</h4>
-                        <pre id="contextCompany">—</pre>
-                        <h4>Tool-Daten (auf Anfrage)</h4>
-                        <details><summary>Stellen</summary><pre id="contextJobs">—</pre></details>
-                        <details><summary>Benefits</summary><pre id="contextBenefits">—</pre></details>
-                        <details><summary>Standorte</summary><pre id="contextLocations">—</pre></details>
-                    </div>
-                </details>
             </aside>
         </main>
 
@@ -118,17 +107,17 @@
             </div>
             <div class="email-body">
                 <div class="email-meta">
-                    <div><strong>Von:</strong> bewerbung@almacare.de</div>
+                    <div><strong>Von:</strong> recruiting@beispiel-firma.de</div>
                     <div><strong>An:</strong> <span id="emailTo">—</span></div>
                     <div><strong>Heute, <span id="emailTime">—</span></strong></div>
                 </div>
                 <h3>📎 Dein Bewerbungs-Upload-Link</h3>
                 <p>Hi 👋</p>
-                <p>danke für deinen Anruf bei AlmaCare! Hier kannst du deinen Lebenslauf hochladen, damit wir das Gespräch fortsetzen können:</p>
+                <p>danke für deinen Anruf! Hier kannst du deinen Lebenslauf hochladen, damit wir das Gespräch fortsetzen können:</p>
                 <button class="upload-btn" id="uploadBtn">📎 Lebenslauf hochladen (PDF)</button>
                 <input type="file" id="cvFileInput" accept="application/pdf" hidden>
                 <p class="email-fineprint">Dieser Link ist 30 Minuten gültig.</p>
-                <p class="email-fineprint">Beste Grüße,<br>AlmaCare Recruiting</p>
+                <p class="email-fineprint">Beste Grüße,<br>Recruiting</p>
             </div>
         </div>
     </div>

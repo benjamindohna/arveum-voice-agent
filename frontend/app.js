@@ -39,34 +39,11 @@ const $ = id => document.getElementById(id);
 // =============================================================================
 // SETUP
 // =============================================================================
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
     loadConfigFromStorage();
     bindUI();
-    await loadAndPopulateContext();
     logEvent('sys', 'App geladen. Stelle sicher dass das Backend läuft (uvicorn main:app), dann Anruf starten.');
 });
-
-async function loadAndPopulateContext() {
-    try {
-        const company = await (await fetch('/api/data/company.json')).json();
-        const jobs = (await (await fetch('/api/data/jobs.json')).json()).jobs;
-        const benefits = await (await fetch('/api/data/benefits.json')).json();
-        const locations = (await (await fetch('/api/data/locations.json')).json()).locations;
-        $('contextCompany').textContent =
-            `${company.name} — ${company.tagline}\n` +
-            `Größe: ${company.size}\n` +
-            `Mission: ${company.mission}\n` +
-            `Werte:\n  - ${company.values.join('\n  - ')}\n` +
-            `Kultur: ${company.team_dynamics}\n${company.communication_culture}\n` +
-            `Differenzierung: ${company.differentiator}\n` +
-            `Was wir nicht machen: ${company.what_we_dont_do}`;
-        $('contextJobs').textContent = JSON.stringify(jobs, null, 2);
-        $('contextBenefits').textContent = JSON.stringify(benefits, null, 2);
-        $('contextLocations').textContent = JSON.stringify(locations, null, 2);
-    } catch (e) {
-        logEvent('err', 'Mock-Daten konnten nicht vom Backend geladen werden — läuft das Backend auf Port 8000?');
-    }
-}
 
 function loadConfigFromStorage() {
     const saved = localStorage.getItem('arveum-config-v2');

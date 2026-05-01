@@ -131,7 +131,7 @@ Sobald Phase-1-Tickets aufgesetzt sind, würde ich **Backend zuerst** in dieser 
 5. **Realtime-Token-Endpoint**: Backend generiert ephemeral Realtime-Tokens
 6. **Frontend-Migration**: bestehender JS-Code → TS, API-Calls statt Direkt-Calls
 7. **CV-Upload-Flow**: S3-Signed-URL + Resend-Email + Webhook-Empfang
-8. **Postgres-Migrations + Seed-Data**: AlmaCare als erster Test-Mandant
+8. **Postgres-Migrations + Seed-Data**: erster Test-Mandant
 9. **Dashboard**: Recruiter sieht alle Calls, kann Audio anhören, Transcripts lesen
 10. **Deployment**: Frontend auf Vercel, Backend auf Railway, DB auf Neon
 
@@ -168,7 +168,7 @@ Alle Optionen sind production-tauglich — die "Wahl"-Spalte ist meine Default-E
 ## Was wir vorab klären müssen
 
 1. **Telefonie-Vision**: nur Browser/Web-Embed, oder Telefonnummern? Beeinflusst Phase 2 stark.
-2. **Multi-Tenancy-Modell**: jede Firma eigene Subdomain (`almacare.arveum.app`) oder zentrale App mit Firmen-Switcher?
+2. **Multi-Tenancy-Modell**: jede Firma eigene Subdomain (`<firma>.arveum.app`) oder zentrale App mit Firmen-Switcher?
 3. **Compliance-Zertifizierung**: ISO 27001 / TISAX bis wann? Beeinflusst Hosting-Wahl (EU-only zwingend) und Logging.
 4. **Eigentum CV-Daten**: kunden-isoliert oder dürfen wir aggregierte Daten zum Modell-Tuning nutzen? (Datenschutz + Geschäftsmodell)
 5. **Pricing-Modell**: per Call / per Hire / per Seat? Beeinflusst Backend-Quoten-Logik.

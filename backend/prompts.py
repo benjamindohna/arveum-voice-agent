@@ -1,10 +1,11 @@
-"""System-Prompts, Greeting und Handoff-Text — 1:1 Port aus mvp-call-agent/app.js"""
+"""System-Prompts, Greeting und Handoff-Text.
 
+Stellen- und Bewerber-Daten kommen ausschließlich aus voice.arveum.ai
+(über Tools). Es gibt keine lokal gepflegten Firmen-/Benefit-/Standort-Daten
+mehr — wenn der Anrufer Themen abseits offener Stellen anspricht, vertröstet
+der Agent oder eskaliert zum Menschen.
+"""
 
-REALTIME_GREETING = (
-    "Hallo und herzlich willkommen bei AlmaCare. Mein Name ist Aria, ich bin eine KI-Assistentin. "
-    "Dieses Gespräch wird zu Recruitment-Zwecken verarbeitet. Was kann ich für dich tun?"
-)
 
 HUMAN_HANDOFF_MESSAGE = (
     "Alles klar, ich leite dich jetzt weiter an einen Menschen aus unserem Recruiting-Team. "
@@ -12,15 +13,56 @@ HUMAN_HANDOFF_MESSAGE = (
 )
 
 
-def build_system_prompt(state, data) -> str:
-    """Baut den vollständigen System-Prompt basierend auf aktuellem State + Mock-Daten."""
-    company = data["company"]
+def build_greeting(company_info: dict | None) -> str:
+    """Begrüßung mit Firmen-Identität, falls über /api/company verfügbar."""
+    name = (company_info or {}).get("name")
+    if name:
+        return (
+            f"Hallo und herzlich willkommen bei {name}. Mein Name ist Aria, "
+            "ich bin eine KI-Recruiting-Assistentin. "
+            "Dieses Gespräch wird zu Recruitment-Zwecken verarbeitet. Was kann ich für dich tun?"
+        )
+    return (
+        "Hallo und herzlich willkommen. Mein Name ist Aria, ich bin eine KI-Recruiting-Assistentin. "
+        "Dieses Gespräch wird zu Recruitment-Zwecken verarbeitet. Was kann ich für dich tun?"
+    )
+
+
+def _build_company_block(company_info: dict | None) -> str:
+    """Kompakter Firmen-Block für den System-Prompt, aus /api/company-Daten."""
+    if not company_info:
+        return ""
+    parts = []
+    name = company_info.get("name")
+    tagline = company_info.get("tagline")
+    if name and tagline:
+        parts.append(f"FIRMA: {name} — {tagline}")
+    elif name:
+        parts.append(f"FIRMA: {name}")
+    if desc := company_info.get("description"):
+        parts.append(f"Beschreibung: {desc}")
+    if (culture := company_info.get("culture")) and isinstance(culture, dict):
+        if culture_de := culture.get("de"):
+            parts.append(f"Kultur: {culture_de}")
+    if (features := company_info.get("key_features")) and isinstance(features, list):
+        parts.append("Differenziatoren: " + " | ".join(features[:4]))
+    if (founders := company_info.get("founders")) and isinstance(founders, list):
+        names = [f.get("name") for f in founders if isinstance(f, dict) and f.get("name")]
+        if names:
+            parts.append(f"Founders: {', '.join(names)}")
+    if location := company_info.get("location"):
+        parts.append(f"Sitz: {location}")
+    return ("\n" + "\n".join(parts) + "\n") if parts else ""
+
+
+def build_system_prompt(state) -> str:
+    """Baut den vollständigen System-Prompt basierend auf aktuellem State."""
     mode = state.mode
     mode_block = ""
 
     if mode == "free":
         mode_block = (
-            "\nDU BIST AKTUELL IM FREE MODE: Beantworte Fragen über AlmaCare warm und kompetent. "
+            "\nDU BIST AKTUELL IM FREE MODE: Beantworte Fragen zu offenen Stellen warm und kompetent. "
             "Wenn der Anrufer Bewerbungsinteresse zeigt, frage subtil, ob du die offenen Stellen vorlesen sollst. "
             "Wenn er sich entscheidet zu bewerben, kläre die Rolle, bestätige sie explizit, weise auf den "
             "15-Minuten-Commitment hin, und rufe DANN send_upload_link auf."
@@ -46,17 +88,23 @@ def build_system_prompt(state, data) -> str:
             "Halte es kurz (2-3 Sätze)."
         )
 
+    company_block = _build_company_block(getattr(state, "company_info", None))
+    company_name = (getattr(state, "company_info", None) or {}).get("name") or "uns"
+
     return (
-        "Du bist Aria, eine KI-Recruiting-Assistentin für AlmaCare.\n\n"
+        f"Du bist Aria, eine KI-Recruiting-Assistentin{f' für {company_name}' if company_name != 'uns' else ''}.\n\n"
         "WICHTIG: Du sprichst gerade mit einer Person am Telefon. Halte dich kurz — gesprochene Antworten von "
         "1-3 Sätzen sind ideal. Vermeide Aufzählungen und Spiegelpunkte. Formuliere wie ein Mensch im Gespräch.\n\n"
-        "ANTI-HALLUZINATIONS-REGEL: Für konkrete Fakten (Stellen, Benefits, Zahlen, Standorte) IMMER ein Tool "
-        "aufrufen. Wenn die Information weder im FIRMA-Block unten noch über ein Tool verfügbar ist, antworte "
-        'ehrlich: "Das kann ich dir leider nicht sagen — ich kann dich aber gerne an einen Menschen weiterleiten, '
-        'der dir mehr sagen kann." Schätze niemals und erfinde nichts.\n\n'
-        "OFF-TOPIC: Wenn der Anrufer Themen anspricht, die nichts mit AlmaCare oder einer Bewerbung zu tun haben "
-        '(Wetter, Politik, andere Firmen, Privates), lenke höflich zurück: "Da kenne ich mich nicht aus, aber ich '
-        'kann dir alles über AlmaCare und unsere Stellen erzählen — was würde dich denn interessieren?"\n\n'
+        f"{company_block}"
+        "ANTI-HALLUZINATIONS-REGEL: Für konkrete Fakten zu Stellen IMMER ein Tool aufrufen "
+        "(list_open_jobs, get_job_details). Zur Firma allgemein (Wer seid ihr? Was macht ihr? Kultur?) nutze "
+        "den FIRMA-Block oben. Zu konkreten Zahlen/Policies (Urlaubstage, Gehalt, Homeoffice-Regelung, "
+        "spezifische Standorte) hast du KEINE Quelle — antworte ehrlich: \"Das kann ich dir leider nicht "
+        "direkt sagen — ich kann dich aber gerne an einen Menschen weiterleiten, der dir mehr sagen kann.\" "
+        "Schätze niemals und erfinde nichts.\n\n"
+        "OFF-TOPIC: Wenn der Anrufer Themen anspricht, die nichts mit offenen Stellen oder einer Bewerbung "
+        "zu tun haben (Wetter, Politik, andere Firmen, Privates), lenke höflich zurück: \"Da kenne ich mich "
+        "nicht aus, aber ich kann dir gerne unsere offenen Stellen vorlesen — interessiert dich was?\"\n\n"
         'DEUTSCHE SPRACHE: Verwende konsequent deutsche Begriffe. Sage "Stelle" statt "Job", "Lebenslauf" statt '
         '"CV", "Bewerbung" statt "Application", "Mitarbeitende" statt "Employees", "Schicht" statt "Shift".\n\n'
         "⚠️ EMAIL-ERFASSUNG — KRITISCH WICHTIG:\n"
@@ -83,14 +131,7 @@ def build_system_prompt(state, data) -> str:
         "Korrektur: korrigieren und nochmal zurücklesen.\n\n"
         "NIEMALS raten oder annehmen — immer bestätigen lassen.\n\n"
         'ESKALATION: Bei Wörtern wie "Mensch", "echter Recruiter", "jemand anderes": SOFORT escalate_to_human aufrufen.\n\n'
-        'DU-ANSPRACHE: Verwende durchgängig "du" — das passt zur AlmaCare-Kultur.\n\n'
-        f"FIRMA: {company['name']} — {company['tagline']}\n"
-        f"Mission: {company['mission']}\n"
-        f"Größe: {company['size']}\n"
-        f"Werte: {'; '.join(company['values'])}\n"
-        f"Kultur: {company['team_dynamics']} {company['communication_culture']}\n"
-        f"Differenzierung: {company['differentiator']}\n"
-        f"Was wir nicht machen: {company['what_we_dont_do']}\n"
+        'DU-ANSPRACHE: Verwende durchgängig "du".\n\n'
         f"{mode_block}"
     )
 
@@ -169,7 +210,6 @@ D) WENN BEWERBER OFF-TOPIC einwirft (z.B. "Wie viele Urlaubstage habt ihr eigent
      • "Eins nach dem anderen — die Frage merken wir uns, jetzt aber bleiben wir beim Interview."
    → Direkt im selben Satz/zwei Sätzen zurück zur aktuellen Interview-Frage (kurze Variante davon)
    → ⚠️ KEIN record_answer (außer der Bewerber HAT ZUVOR auch die Frage beantwortet — dann ja record_answer für die Antwort, dann verbal die Off-Topic-Vertröstung)
-   → ⚠️ KEIN get_benefit / get_locations / list_open_jobs / get_job_details — diese Tools sind im Interview TABU.
 
 TOOL-DISZIPLIN IM INTERVIEW (PFLICHT):
 Im Interview-Modus rufst du AUSSCHLIESSLICH diese drei Tools auf:

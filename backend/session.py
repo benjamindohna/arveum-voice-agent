@@ -9,6 +9,8 @@ class VoiceSession:
     mode: str = "idle"                       # idle | free | awaiting_upload | cv_received | interview | wrapping | ended
     caller_email: str | None = None
     selected_job_id: str | None = None
+    selected_job_data: dict[str, Any] | None = None  # gecachte Job-Details aus voice.arveum.ai
+    company_info: dict[str, Any] | None = None       # gecachte /api/company Daten (Name, Tagline, Beschreibung)
     cv_base64: str | None = None
     questions: list[str] = field(default_factory=list)
     current_question_idx: int = 0
@@ -29,6 +31,7 @@ class VoiceSession:
         self.mode = "free"
         self.caller_email = None
         self.selected_job_id = None
+        self.selected_job_data = None
         self.cv_base64 = None
         self.questions = []
         self.current_question_idx = 0
@@ -39,10 +42,8 @@ class VoiceSession:
         self.muted = False
         self.last_agent_message = ""
 
-    def to_dashboard_dict(self, data: dict | None = None):
-        """Was das Frontend für sein Recruiter-Dashboard braucht.
-
-        Wenn data übergeben wird, werden Job-Title + Location für die UI mitgeliefert."""
+    def to_dashboard_dict(self):
+        """Was das Frontend für sein Recruiter-Dashboard braucht."""
         d = {
             "mode": self.mode,
             "callerEmail": self.caller_email,
@@ -53,9 +54,7 @@ class VoiceSession:
             "currentQuestionIdx": self.current_question_idx,
             "totalQuestions": len(self.questions),
         }
-        if data and self.selected_job_id:
-            job = next((j for j in data.get("jobs", []) if j["id"] == self.selected_job_id), None)
-            if job:
-                d["selectedJobTitle"] = job["title"]
-                d["selectedJobLocation"] = job["location"]
+        if self.selected_job_data:
+            d["selectedJobTitle"] = self.selected_job_data.get("title")
+            d["selectedJobLocation"] = self.selected_job_data.get("location")
         return d

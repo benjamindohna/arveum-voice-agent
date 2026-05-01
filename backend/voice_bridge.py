@@ -18,7 +18,8 @@ import websockets
 from fastapi import WebSocket, WebSocketDisconnect
 
 from session import VoiceSession
-from prompts import build_system_prompt, REALTIME_GREETING, HUMAN_HANDOFF_MESSAGE
+from prompts import build_system_prompt, build_greeting, HUMAN_HANDOFF_MESSAGE
+import voice_api
 from tools import execute_tool, ToolContext, tools_for_mode
 from email_service import EmailService
 from llm import generate_questions_from_cv, score_candidate
@@ -28,9 +29,8 @@ OPENAI_REALTIME_URL_TEMPLATE = "wss://api.openai.com/v1/realtime?model={model}"
 
 
 class VoiceBridge:
-    def __init__(self, browser_ws: WebSocket, data: dict, email_service: EmailService):
+    def __init__(self, browser_ws: WebSocket, email_service: EmailService):
         self.browser_ws = browser_ws
-        self.data = data
         self.email_service = email_service
         self.session = VoiceSession()
         self.openai_ws: websockets.WebSocketClientProtocol | None = None
@@ -97,8 +97,24 @@ class VoiceBridge:
             "type": "log", "logtype": "sys",
             "message": f"=== Call gestartet (Voice: {self.session.openai_voice}, Model: {self.session.realtime_model}) ===",
         })
-        await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict(self.data)})
+        await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict()})
         await self.send_to_browser({"type": "status", "text": "Call aktiv", "className": "active"})
+
+        # Firmen-Identität für Greeting + System-Prompt fetchen.
+        # Nicht-blockierend: bei Fehler bleibt session.company_info None und der Agent
+        # nutzt einen generischen Fallback.
+        try:
+            self.session.company_info = await voice_api.get_company_info()
+            company_name = (self.session.company_info or {}).get("name") or "(unbekannt)"
+            await self.send_to_browser({
+                "type": "log", "logtype": "sys",
+                "message": f"Firmen-Identität geladen: {company_name}",
+            })
+        except Exception as e:
+            await self.send_to_browser({
+                "type": "log", "logtype": "err",
+                "message": f"/api/company nicht erreichbar — generische Begrüßung: {e}",
+            })
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
@@ -131,7 +147,7 @@ class VoiceBridge:
         # 2. Verbatim-Greeting via response.create Override
         await self.send_to_browser({"type": "mic_state", "text": "🔊 Aria spricht (Begrüßung — nicht unterbrechbar)"})
         await self.send_to_browser({"type": "log", "logtype": "sys", "message": "Begrüßung via Realtime (response.create override)"})
-        await self._trigger_verbatim_response(REALTIME_GREETING)
+        await self._trigger_verbatim_response(build_greeting(self.session.company_info))
 
         # 3. Auf Ende der Begrüßung warten (Audio drained)
         try:
@@ -164,7 +180,7 @@ class VoiceBridge:
                 "silence_duration_ms": silence_ms,
             }
         )
-        instructions = build_system_prompt(self.session, self.data)
+        instructions = build_system_prompt(self.session)
         active_tools = tools_for_mode(self.session.mode)
         session_config = {
             "modalities": ["text", "audio"],
@@ -308,10 +324,9 @@ class VoiceBridge:
 
         ctx = ToolContext(
             session=self.session,
-            data=self.data,
             on_event=self.send_to_browser,
             email_service=self.email_service,
-            score_candidate_fn=lambda: score_candidate(self.session, self.data, self.send_to_browser),
+            score_candidate_fn=lambda: score_candidate(self.session, self.send_to_browser),
             end_call_with_escalation_fn=lambda reason: self._schedule_human_handoff(reason),
         )
 
@@ -368,7 +383,7 @@ class VoiceBridge:
         await self.send_to_browser({"type": "log", "logtype": "sys", "message": f"Lebenslauf hochgeladen: {filename}"})
 
         self.session.mode = "cv_received"
-        await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict(self.data)})
+        await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict()})
         await self.send_to_browser({"type": "status", "text": "Lebenslauf empfangen, generiere Fragen...", "className": "active"})
         await self.send_to_browser({"type": "log", "logtype": "sys", "message": "CV-Upload-Flow"})
 
@@ -394,7 +409,7 @@ class VoiceBridge:
 
         # Parallel: Fragen via Claude
         try:
-            questions = await generate_questions_from_cv(self.session, self.data, self.send_to_browser)
+            questions = await generate_questions_from_cv(self.session, self.send_to_browser)
             self.session.questions = questions
             await self.send_to_browser({
                 "type": "log", "logtype": "sys",
@@ -403,7 +418,7 @@ class VoiceBridge:
 
             self.session.mode = "interview"
             self.session.current_question_idx = 0
-            await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict(self.data)})
+            await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict()})
             await self.send_to_browser({"type": "status", "text": "Interview", "className": "active"})
 
             await self._sync_session(disable_vad=False)
@@ -444,7 +459,7 @@ class VoiceBridge:
         await self.send_to_browser({"type": "system_message", "text": "— Call beendet —"})
         await self.send_to_browser({"type": "log", "logtype": "sys", "message": "=== Call beendet ==="})
         await self.send_to_browser({"type": "call_ended"})
-        await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict(self.data)})
+        await self.send_to_browser({"type": "state_update", "state": self.session.to_dashboard_dict()})
         await self.send_to_browser({"type": "status", "text": "Call beendet", "className": ""})
         await self._cleanup()
 

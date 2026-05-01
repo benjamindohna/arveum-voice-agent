@@ -1,13 +1,19 @@
 """Anthropic Claude für Backend-Tasks: Question-Generation aus PDF + Scoring.
 
 Realtime-API kann keine PDFs lesen, daher bleibt Claude für diese zwei Tasks zuständig.
-1:1 Port aus mvp-call-agent/app.js generateQuestionsFromCv + scoreCandidate."""
+
+Job-Daten kommen jetzt von voice.arveum.ai als `{id, title, description}`.
+Den `application_focus` leiten wir per `enrichment.derive_application_focus`
+einmalig pro Stelle ab (gecached)."""
 
 import os
 import json
 import re
 import asyncio
 import anthropic
+
+import voice_api
+from enrichment import derive_application_focus
 
 
 _client = None
@@ -29,23 +35,43 @@ def _strip_markdown_fences(text: str) -> str:
     return cleaned.strip()
 
 
-async def generate_questions_from_cv(session, data, on_event) -> list[str]:
+async def _resolve_job(session, on_event) -> dict:
+    """Holt das gewählte Job-Objekt — aus session-Cache, oder per API-Call falls fehlend."""
+    if session.selected_job_data:
+        return session.selected_job_data
+    if not session.selected_job_id:
+        raise RuntimeError("Keine Stelle gewählt")
+    job = await voice_api.get_job_details(session.selected_job_id)
+    session.selected_job_data = job
+    return job
+
+
+async def generate_questions_from_cv(session, on_event) -> list[str]:
     """Analysiert CV (base64 PDF) für gewählte Stelle, gibt N Interview-Fragen zurück."""
-    job = next((j for j in data["jobs"] if j["id"] == session.selected_job_id), None)
-    if job is None:
-        raise RuntimeError(f"Stelle {session.selected_job_id} nicht gefunden")
+    job = await _resolve_job(session, on_event)
     n = session.question_count or 8
 
-    prompt_text = f"""Analysiere diesen Lebenslauf für die Stelle "{job['title']}" bei AlmaCare.
+    description = job.get("description") or ""
+    focus = await derive_application_focus(
+        job_id=job.get("id", session.selected_job_id or ""),
+        title=job.get("title", ""),
+        description=description,
+        model=session.backend_llm_model,
+        on_event=on_event,
+    )
 
-Stellen-Fokus: {job['application_focus']}
-Anforderungen: {'; '.join(job['requirements'])}
-Nice-to-have: {'; '.join(job['nice_to_have'])}
+    prompt_text = f"""Analysiere diesen Lebenslauf für die Stelle "{job.get('title', '')}".
+
+Stellen-Fokus (für das Interview):
+{focus}
+
+Stellenbeschreibung (Volltext):
+{description}
 
 Erstelle GENAU {n} tiefgehende, rollenspezifische Fragen, die folgendes prüfen:
-- Fachliche Substanz (für Pflegerollen: konkrete Praxis-Situationen, nicht abstrakte Theorie)
+- Fachliche Substanz (konkrete Praxis-Situationen, nicht abstrakte Theorie)
 - Behavioral / konkrete Beispiele aus der Vergangenheit
-- Motivation und Cultural Fit zu AlmaCare
+- Motivation und Cultural Fit
 {"- Mindestens eine Frage zu schwierigen Situationen (Konflikte, Belastung)" if n >= 4 else ""}
 
 Antworte AUSSCHLIESSLICH mit einem JSON-Array von {n} Strings (die Fragen), sonst nichts. Keine Markdown-Codeblöcke, kein Vorwort."""
@@ -96,11 +122,9 @@ Antworte AUSSCHLIESSLICH mit einem JSON-Array von {n} Strings (die Fragen), sons
     return questions
 
 
-async def score_candidate(session, data, on_event) -> dict:
+async def score_candidate(session, on_event) -> dict:
     """Bewertet die gesammelten Antworten. Gibt {score, highlights} zurück."""
-    job = next((j for j in data["jobs"] if j["id"] == session.selected_job_id), None)
-    if job is None:
-        raise RuntimeError(f"Stelle {session.selected_job_id} nicht gefunden")
+    job = await _resolve_job(session, on_event)
 
     answers_block = "\n\n".join(
         f"Frage {i + 1}: {a['question']}\n"
@@ -109,7 +133,10 @@ async def score_candidate(session, data, on_event) -> dict:
         for i, a in enumerate(session.answers)
     )
 
-    user_prompt = f"""Du bist ein erfahrener Recruiter bei AlmaCare. Bewerte diesen Bewerber für die Stelle "{job['title']}" basierend auf dem Interview.
+    user_prompt = f"""Du bist ein erfahrener Recruiter. Bewerte diesen Bewerber für die Stelle "{job.get('title', '')}" basierend auf dem Interview.
+
+Stellenbeschreibung:
+{job.get('description') or '(keine Beschreibung)'}
 
 Interview-Antworten:
 {answers_block}
@@ -147,7 +174,7 @@ Antworte NUR mit dem JSON-Objekt."""
             "message": f"Scoring: {session.score}/100",
             "data": " | ".join(session.highlights),
         })
-        await on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
+        await on_event({"type": "state_update", "state": session.to_dashboard_dict()})
         return result
     except Exception as e:
         await on_event({
@@ -156,5 +183,5 @@ Antworte NUR mit dem JSON-Objekt."""
             "message": f"Scoring fehlgeschlagen: {e}",
         })
         session.score = "?"
-        await on_event({"type": "state_update", "state": session.to_dashboard_dict(data)})
+        await on_event({"type": "state_update", "state": session.to_dashboard_dict()})
         return {"score": "?", "highlights": []}
