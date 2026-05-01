@@ -19,7 +19,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from session import VoiceSession
 from prompts import build_system_prompt, REALTIME_GREETING, HUMAN_HANDOFF_MESSAGE
-from tools import TOOL_DEFS, execute_tool, ToolContext
+from tools import execute_tool, ToolContext, tools_for_mode
 from email_service import EmailService
 from llm import generate_questions_from_cv, score_candidate
 
@@ -165,6 +165,7 @@ class VoiceBridge:
             }
         )
         instructions = build_system_prompt(self.session, self.data)
+        active_tools = tools_for_mode(self.session.mode)
         session_config = {
             "modalities": ["text", "audio"],
             "instructions": instructions,
@@ -173,15 +174,16 @@ class VoiceBridge:
             "output_audio_format": "pcm16",
             "input_audio_transcription": {"model": "gpt-4o-transcribe", "language": "de"},
             "turn_detection": turn_detection,
-            "tools": TOOL_DEFS,
+            "tools": active_tools,
             "tool_choice": "auto",
             "temperature": 0.8,
         }
         await self._openai_send({"type": "session.update", "session": session_config})
         vad_info = "VAD AUS (nicht unterbrechbar)" if disable_vad else f"silence={silence_ms}ms"
+        tool_names = ", ".join(t["name"] for t in active_tools) or "(keine)"
         await self.send_to_browser({
             "type": "log", "logtype": "sys",
-            "message": f"Realtime session aktualisiert ({vad_info}, instructions={len(instructions)} chars)",
+            "message": f"Realtime session aktualisiert (mode={self.session.mode}, {vad_info}, tools=[{tool_names}], instructions={len(instructions)} chars)",
         })
 
     # ─── Verbatim-Response (response.create mit Override) ──────────────
@@ -340,10 +342,12 @@ class VoiceBridge:
 
     # ─── Mensch-Übergabe (asynchron) ───────────────────────────────────
     async def _schedule_human_handoff(self, reason: str):
-        try:
-            await asyncio.wait_for(self._wait_for_response_and_playback_done(), timeout=20)
-        except asyncio.TimeoutError:
-            pass
+        # Laufende LLM-Ausgabe kappen (gleicher Pattern wie CV-Upload).
+        # Auf response.done zu warten würde racen, weil das Event durch die
+        # tool-Antwort meist schon gesetzt ist, bevor dieser Task startet.
+        await self._openai_send({"type": "response.cancel"})
+        await self.send_to_browser({"type": "stop_playback"})
+        await asyncio.sleep(0.2)
         await self.send_to_browser({"type": "log", "logtype": "sys", "message": "Spreche Übergangs-Ansage"})
         await self._trigger_verbatim_response(HUMAN_HANDOFF_MESSAGE)
         try:

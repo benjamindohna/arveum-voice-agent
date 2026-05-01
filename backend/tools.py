@@ -98,6 +98,38 @@ TOOL_DEFS: list[dict[str, Any]] = [
 ]
 
 
+# Mode → erlaubte Tool-Namen. Nur diese werden an die LLM exponiert,
+# damit Cross-Mode-Halluzinationen (z.B. record_answer im Free Mode)
+# unmöglich sind statt nur durch Prompt-Regeln verboten.
+_FREE_TOOLS = {
+    "list_open_jobs",
+    "get_job_details",
+    "get_benefit",
+    "get_locations",
+    "send_upload_link",
+    "escalate_to_human",
+}
+_INTERVIEW_TOOLS = {
+    "record_answer",
+    "extend_previous_answer",
+    "escalate_to_human",
+}
+_MIN_TOOLS = {"escalate_to_human"}
+
+
+def tools_for_mode(mode: str) -> list[dict[str, Any]]:
+    """Tools, die der LLM im gegebenen Session-Mode aufrufen darf."""
+    if mode == "interview":
+        allowed = _INTERVIEW_TOOLS
+    elif mode == "free":
+        allowed = _FREE_TOOLS
+    elif mode in ("awaiting_upload", "cv_received", "wrapping"):
+        allowed = _MIN_TOOLS
+    else:
+        allowed = _FREE_TOOLS
+    return [t for t in TOOL_DEFS if t["name"] in allowed]
+
+
 # Tool-Handler
 # Signatur: async def handler(input: dict, ctx: ToolContext) -> dict
 # ctx gibt Zugriff auf session, data, on_event (UI-Updates an Browser pushen),
