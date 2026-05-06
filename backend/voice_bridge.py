@@ -101,20 +101,32 @@ class VoiceBridge:
         await self.send_to_browser({"type": "status", "text": "Call aktiv", "className": "active"})
 
         # Firmen-Identität für Greeting + System-Prompt fetchen.
-        # Nicht-blockierend: bei Fehler bleibt session.company_info None und der Agent
-        # nutzt einen generischen Fallback.
-        try:
-            self.session.company_info = await voice_api.get_company_info()
-            company_name = (self.session.company_info or {}).get("name") or "(unbekannt)"
+        # COMPANY_NAME (env) überschreibt die API-Antwort — sinnvoll, solange
+        # voice.arveum.ai unter /api/company noch das Profil des Plattform-
+        # Anbieters liefert statt das des aktuellen Mandanten.
+        override_name = os.environ.get("COMPANY_NAME")
+        override_tagline = os.environ.get("COMPANY_TAGLINE")
+        if override_name:
+            self.session.company_info = {"name": override_name}
+            if override_tagline:
+                self.session.company_info["tagline"] = override_tagline
             await self.send_to_browser({
                 "type": "log", "logtype": "sys",
-                "message": f"Firmen-Identität geladen: {company_name}",
+                "message": f"Firmen-Identität aus env: {override_name}",
             })
-        except Exception as e:
-            await self.send_to_browser({
-                "type": "log", "logtype": "err",
-                "message": f"/api/company nicht erreichbar — generische Begrüßung: {e}",
-            })
+        else:
+            try:
+                self.session.company_info = await voice_api.get_company_info()
+                company_name = (self.session.company_info or {}).get("name") or "(unbekannt)"
+                await self.send_to_browser({
+                    "type": "log", "logtype": "sys",
+                    "message": f"Firmen-Identität geladen: {company_name}",
+                })
+            except Exception as e:
+                await self.send_to_browser({
+                    "type": "log", "logtype": "err",
+                    "message": f"/api/company nicht erreichbar — generische Begrüßung: {e}",
+                })
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
